@@ -531,6 +531,19 @@ class Show extends EventEmitter {
       fr.readAsText(file);
     });
   }
+
+  setupDMXReceiver(url, universeId) {
+    const universe = this.universePool.getFromId(universeId);
+    const ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+    
+    ws.onmessage = (event) => {
+      const dmxData = new Uint8Array(event.data);
+      universe.DMX512Data = dmxData;
+    };
+    
+    return ws;
+  }
 }
 
 export default Show;

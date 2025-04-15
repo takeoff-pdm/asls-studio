@@ -139,16 +139,22 @@ class Universe {
   get DMX512Data() {
     const DMX_PACKET_LENGTH = 512;
     const DMX_BUFF = new Uint8Array(DMX_PACKET_LENGTH);
-    this._addressMap.forEach((address, index) => {
-      const fixture = this._patch[address];
-      if (fixture) {
-        const fixtureChannelIndex = index - fixture.chStart;
-        DMX_BUFF[index] = fixture.channels[fixtureChannelIndex].value.DMX || 0;
-      } else {
-        DMX_BUFF[index] = 0;
-      }
-    });
-    return DMX_BUFF;
+    try {
+      this._addressMap.forEach((address, index) => {
+        const fixture = this._patch[address];
+        if (fixture) {
+          const fixtureChannelIndex = index - fixture.chStart;
+          // console.log(fixtureChannelIndex, index, fixture.chStart)
+          DMX_BUFF[index] = fixture.channels[fixtureChannelIndex].value.DMX || 0;
+        } else {
+          DMX_BUFF[index] = 0;
+        }
+      });
+      return DMX_BUFF;
+    } catch (error) {
+      // console.error(error);
+      return DMX_BUFF;
+    }
   }
 
   /**

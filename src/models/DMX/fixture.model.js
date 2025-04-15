@@ -3,6 +3,7 @@ import {
 } from '../utils/proxify.utils';
 import Channel from './channel.model';
 import MovingHead from '../../plugins/visualizer/moving_head';
+import StaticLight from '../../plugins/visualizer/static_light';
 import Controls from '../../plugins/visualizer/controls';
 
 /**
@@ -80,6 +81,7 @@ const WHEEL_CHANNEL_TYPES = {
  */
 const FIXTURE_TYPES = {
   MOVING_HEAD: 'Moving Head',
+  STATIC_LIGHT: 'Color Changer',
 };
 
 /**
@@ -472,23 +474,23 @@ class Fixture extends Proxify {
       pan: this.hasQuickAccessor({
         type: 'Pan',
       }) ? this.getQuickAccessor({
-          type: 'Pan',
-        }).value.DMX : 0,
+        type: 'Pan',
+      }).value.DMX : 0,
       panFine: this.hasQuickAccessor({
         type: 'PanFine',
       }) ? this.getQuickAccessor({
-          type: 'PanFine',
-        }).value.DMX : 0,
+        type: 'PanFine',
+      }).value.DMX : 0,
       tilt: this.hasQuickAccessor({
         type: 'Tilt',
       }) ? this.getQuickAccessor({
-          type: 'Tilt',
-        }).value.DMX : 0,
+        type: 'Tilt',
+      }).value.DMX : 0,
       tiltFine: this.hasQuickAccessor({
         type: 'TiltFine',
       }) ? this.getQuickAccessor({
-          type: 'TiltFine',
-        }).value.DMX : 0,
+        type: 'TiltFine',
+      }).value.DMX : 0,
     };
   }
 
@@ -730,8 +732,28 @@ class Fixture extends Proxify {
         this._3DModel = movingHead; // Binding moving head instance to this fixture instance
         break;
       }
+      case FIXTURE_TYPES.STATIC_LIGHT: {
+        const staticLight = new StaticLight({ // Creating new moving head instance
+          minAngle: this.OFLData.physical.lens ? this.OFLData.physical.lens.degreesMinMax[0] : 10, // Setting moving head's minimum beam angle
+          maxAngle: this.OFLData.physical.lens ? this.OFLData.physical.lens.degreesMinMax[1] : 25, // Setting moving head's maximum beam angle
+          minTilt: this.quickChannelsAccessors.Tilt ? this.quickChannelsAccessors.Tilt[0].minVal : 0,
+          maxTilt: this.quickChannelsAccessors.Tilt ? this.quickChannelsAccessors.Tilt[0].maxVal : 0,
+          minPan: this.quickChannelsAccessors.Pan ? this.quickChannelsAccessors.Pan[0].minVal : 0,
+          maxPan: this.quickChannelsAccessors.Pan ? this.quickChannelsAccessors.Pan[0].maxVal : 0,
+          colorTemp: this.OFLData.physical.bulb.colorTemperature, // Setting moving head's default bulb color temperature
+          intensity: 0.0, // Setting moving head's default intensity
+          pan: 128, // Setting moving head's default pan value
+          tilt: 128, // Setting moving head's default tilt value
+          colorWheel: this.OFLData.wheels && this.OFLData.wheels['Color Wheel'] ? this.OFLData.wheels['Color Wheel'].slots : [], // Providing color wheel data (if necessary)
+          goboWheel: this.OFLData.wheels && this.OFLData.wheels['Gobo Wheel'] ? this.OFLData.wheels['Gobo Wheel'].slots : [], // Providing gobo wheel data (if necessary) (not supported in renderer yet...)
+        });
+        staticLight.position = this._position; // Setting moving head's position in 3D space
+        staticLight.rotation = this._rotation; // Setting moving head's rotation in 3D space
+        this._3DModel = staticLight; // Binding moving head instance to this fixture instance
+        break;
+      }
       default: { // Do nothing for every other fixture types.
-        throw new Error('This fixture type is not supported yet.');
+        throw new Error(`This fixture type ${this.category} is not supported yet.`);
       }
     }
   }
@@ -854,6 +876,9 @@ class Fixture extends Proxify {
     switch (instance.category) {
       case FIXTURE_TYPES.MOVING_HEAD:
         MovingHead.deleteInstance(instance._3DModel);
+        break;
+      case FIXTURE_TYPES.STATIC_LIGHT:
+        StaticLight.deleteInstance(instance._3DModel);
         break;
       default:
         break;

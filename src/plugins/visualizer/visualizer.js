@@ -10,6 +10,7 @@ import AnimationManager from './animation_manager';
 import Controls from './controls';
 import MovingHead from './moving_head';
 import InfiniteGridHelper from './grid';
+import StaticLight from './static_light';
 
 /**
  * THREE.Vector3 round prototype override.
@@ -246,9 +247,11 @@ class Visualizer {
     this.globalLightHandle.position.set(-10, -10, 10);
 
     MovingHead.prepareInstanciation(this.camera, SceneManager);
+    StaticLight.prepareInstanciation(this.camera, SceneManager);
 
     AnimationManager.add((t) => {
       MovingHead.update(t);
+      StaticLight.update(t);
     });
 
     // Floor

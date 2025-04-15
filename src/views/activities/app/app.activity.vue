@@ -21,6 +21,18 @@
       style="z-index: 1000"
       :error="errPopup.error"
     />
+    
+    <div v-if="ready" class="floating-panel-container">
+      <div class="floating-panel" :class="{ 'collapsed': dmxReceiverCollapsed }">
+        <div class="floating-panel-header" @click="dmxReceiverCollapsed = !dmxReceiverCollapsed">
+          <span>DMX Receiver</span>
+          <button class="collapse-btn">{{ dmxReceiverCollapsed ? '▼' : '▲' }}</button>
+        </div>
+        <div v-show="!dmxReceiverCollapsed" class="floating-panel-content">
+          <dmx-receiver />
+        </div>
+      </div>
+    </div>
   </uk-flex>
 </template>
 
@@ -32,6 +44,7 @@ import PatchBay from './fragments/patch-bay/patch-bay.fragment.vue';
 import GroupPool from './fragments/group-pool/group-pool.fragment.vue';
 import Visualizer from './fragments/visualizer/visualizer.fragment.vue';
 import Modifier from './fragments/modifiers/modifier.fragment.vue';
+import DmxReceiver from './fragments/DmxReceiver.vue';
 
 import PopupSplash from './_popups/popup.splash.vue';
 import ErrorPopup from './_popups/popup.error.vue';
@@ -48,6 +61,7 @@ export default {
     GroupPool,
     Visualizer,
     Modifier,
+    DmxReceiver,
     PopupSplash,
     ErrorPopup,
   },
@@ -72,6 +86,10 @@ export default {
        * Handle to show loading property
        */
       loader: this.$show.loading,
+      /**
+       * DMX Receiver panel collapsed state
+       */
+      dmxReceiverCollapsed: false,
     };
   },
   watch: {
@@ -154,5 +172,59 @@ export default {
 }
 .visualizer {
   height: 100% !important;
+}
+.dmx-receiver-container {
+  margin: 16px;
+  z-index: 10;
+}
+.floating-panel-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+  width: 100%;
+}
+
+.floating-panel {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.floating-panel.collapsed {
+  max-height: 40px;
+}
+
+.floating-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background-color: #2196F3;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.collapse-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.floating-panel-content {
+  padding: 0;
+}
+
+.floating-panel-content .dmx-receiver {
+  border: none;
+  border-radius: 0;
+  margin-bottom: 0;
 }
 </style>
