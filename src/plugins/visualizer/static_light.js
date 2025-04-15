@@ -177,6 +177,7 @@ class StaticLight {
     this._id = instanceCount++;
     this._position = new THREE.Vector3();
     this._rotation = new THREE.Vector3();
+    this._quaternion = new THREE.Quaternion();
     this._minAngle = data.minAngle + 1.0;
     this._maxAngle = data.maxAngle + 1.0;
     this._shutter = SHUTTER_VALUE.OPEN;
@@ -679,6 +680,31 @@ class StaticLight {
     this.updateStrobe(t);
     this.updateMatrix();
     this.updateDirectionVector();
+    
+    // Update the quaternion from rotation
+    this._quaternion.setFromEuler(new THREE.Euler(
+      StaticLight.degToRad(this._rotation.x),
+      StaticLight.degToRad(this._rotation.y),
+      StaticLight.degToRad(this._rotation.z),
+      'XYZ'
+    ));
+    
+    // Update DMX response values - use existing properties
+    this._spotLight.intensity = this.intensity * this._shutter;
+    this._spotLight.color = this.color;
+    
+    // Get the world position for the spotlight
+    this._beamDummy.getWorldPosition(vector_beam_pos);
+    this._spotLight.position.copy(vector_beam_pos);
+    
+    // Set the target position relative to the beam origin in local coordinates
+    this._targetDummy.position.set(0, 0, -BEAM_LENGTH);
+    
+    // Force the target to update its world position
+    this._targetDummy.updateMatrixWorld(true);
+    
+    // Set matrixNeedsUpdate to ensure matrices are recalculated next frame
+    this._matrixNeedsUpdate = true;
   }
 
   static degToRad(degAngle) {

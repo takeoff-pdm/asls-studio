@@ -4,6 +4,14 @@
     class="app_activity"
   >
     <toolbar />
+    
+    <div v-show="ready" class="dmx-receiver-panel" :class="{'hidden': !dmxReceiverVisible}">
+      <button class="close-button" @click="toggleDmxReceiverPanel(false)">×</button>
+      <keep-alive>
+        <dmx-receiver ref="dmxReceiver" />
+      </keep-alive>
+    </div>
+    
     <uk-flex class="top_fragments">
       <uk-flex class="top_fragment_left">
         <patch-bay />
@@ -21,18 +29,6 @@
       style="z-index: 1000"
       :error="errPopup.error"
     />
-    
-    <div v-if="ready" class="floating-panel-container">
-      <div class="floating-panel" :class="{ 'collapsed': dmxReceiverCollapsed }">
-        <div class="floating-panel-header" @click="dmxReceiverCollapsed = !dmxReceiverCollapsed">
-          <span>DMX Receiver</span>
-          <button class="collapse-btn">{{ dmxReceiverCollapsed ? '▼' : '▲' }}</button>
-        </div>
-        <div v-show="!dmxReceiverCollapsed" class="floating-panel-content">
-          <dmx-receiver />
-        </div>
-      </div>
-    </div>
   </uk-flex>
 </template>
 
@@ -87,9 +83,9 @@ export default {
        */
       loader: this.$show.loading,
       /**
-       * DMX Receiver panel collapsed state
+       * DMX Receiver panel visibility state
        */
-      dmxReceiverCollapsed: false,
+      dmxReceiverVisible: localStorage.getItem('dmxReceiverVisible') === 'true',
     };
   },
   watch: {
@@ -99,6 +95,9 @@ export default {
         this.loader = value;
       },
     },
+    dmxReceiverVisible(value) {
+      localStorage.setItem('dmxReceiverVisible', value.toString());
+    }
   },
   async mounted() {
     this.$router._appReayState = false;
@@ -108,6 +107,14 @@ export default {
       this.errPopup.error = err;
       this.errPopup.state = true;
     });
+    
+    // Listen for DMX Receiver toggle events
+    EventBus.on('toggle_dmx_receiver', (visible) => {
+      this.dmxReceiverVisible = visible;
+    });
+  },
+  beforeUnmount() {
+    EventBus.off('toggle_dmx_receiver');
   },
   methods: {
     /**
@@ -138,6 +145,11 @@ export default {
       this.ready = true;
       EventBus.emit('app_ready');
     },
+    toggleDmxReceiverPanel(visible) {
+      this.dmxReceiverVisible = visible;
+      // Emit event to sync toolbar state
+      EventBus.emit('dmx_receiver_state_changed', visible);
+    }
   },
 };
 </script>
@@ -173,58 +185,55 @@ export default {
 .visualizer {
   height: 100% !important;
 }
-.dmx-receiver-container {
-  margin: 16px;
-  z-index: 10;
-}
-.floating-panel-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
+
+.dmx-receiver-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
-  max-width: 400px;
-  width: 100%;
+  transition: transform 0.3s ease;
+  transform: translateY(0);
 }
 
-.floating-panel {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
+.dmx-receiver-panel.hidden {
+  transform: translateY(-100%);
+}
+
+/* Animation for the DMX Receiver panel */
+.slide-down-enter-active, .slide-down-leave-active {
   transition: all 0.3s ease;
 }
 
-.floating-panel.collapsed {
-  max-height: 40px;
+.slide-down-enter-from, .slide-down-leave-to {
+  transform: translateY(-100%);
 }
 
-.floating-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  background-color: #2196F3;
+.slide-down-enter-to, .slide-down-leave-from {
+  transform: translateY(0);
+}
+
+.close-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--accent-red);
   color: white;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.collapse-btn {
-  background: none;
   border: none;
-  color: white;
   font-size: 16px;
+  line-height: 1;
   cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
 }
 
-.floating-panel-content {
-  padding: 0;
-}
-
-.floating-panel-content .dmx-receiver {
-  border: none;
-  border-radius: 0;
-  margin-bottom: 0;
+.close-button:hover {
+  background-color: var(--accent-maroon);
 }
 </style>

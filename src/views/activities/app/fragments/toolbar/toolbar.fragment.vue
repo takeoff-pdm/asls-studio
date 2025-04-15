@@ -46,6 +46,24 @@
     >
       <h3>TAP TEMPO</h3>
     </uk-flex>
+    <uk-flex
+      center-both
+      class="dmx_receiver_container"
+      @click="toggleDmxReceiver"
+      :class="{ 
+        'active': dmxReceiverVisible,
+        'connected': dmxReceiverConnected
+      }"
+    >
+      <span class="dmx_receiver_icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="4" height="6" rx="1" fill="currentColor" fill-opacity="0.1"></rect>
+          <rect x="18" y="12" width="4" height="6" rx="1" fill="currentColor" fill-opacity="0.1"></rect>
+          <path d="M6 5 C 8 5, 10 8, 12 10 C 14 12, 16 15, 18 15"></path>
+        </svg>
+      </span>
+      <h3>DMX IN</h3>
+    </uk-flex>
     <visualizer-popup v-model="visualizerPopupState" />
     <license-popup v-model="licensePopupState" />
     <credits-popup v-model="creditsPopupState" />
@@ -126,6 +144,14 @@ export default {
        */
       bpmPopupState: false,
       /**
+       * DMX Receiver visibility state
+       */
+      dmxReceiverVisible: localStorage.getItem('dmxReceiverVisible') === 'true',
+      /**
+       * DMX Receiver connection state
+       */
+      dmxReceiverConnected: false,
+      /**
        * Toolbarmenu configuration object
        */
       menus: [
@@ -203,10 +229,18 @@ export default {
             },
             {
               name: 'Outputs',
-              shortcut: 'Ctrl+Shift+o',
+              shortcut: 'Ctrl+Shift+O',
               icon: 'zoom',
               callback: () => {
                 this.connectionsPopupState = true;
+              },
+            },
+            {
+              name: 'DMX Receiver',
+              shortcut: 'Alt+D',
+              icon: 'network',
+              callback: () => {
+                this.toggleDmxReceiver();
               },
             },
           ],
@@ -283,6 +317,24 @@ export default {
       window.removeEventListener('keydown', this.handleKeydownEvent);
       window.addEventListener('keydown', this.handleKeydownEvent);
     });
+    
+    // Set up key listener
+    window.addEventListener('keydown', this.handleKeydownEvent);
+    
+    // Listen for changes to the dmxReceiverVisible state from the panel close button
+    EventBus.on('dmx_receiver_state_changed', (visible) => {
+      this.dmxReceiverVisible = visible;
+    });
+    
+    // Listen for DMX connection state changes
+    EventBus.on('dmx_connection_state_changed', (connected) => {
+      this.dmxReceiverConnected = connected;
+    });
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.handleKeydownEvent);
+    EventBus.off('dmx_receiver_state_changed');
+    EventBus.off('dmx_connection_state_changed');
   },
   methods: {
     /**
@@ -339,6 +391,15 @@ export default {
       this.$show.persistLocally();
     },
     /**
+     * Toggle DMX Receiver panel visibility
+     */
+    toggleDmxReceiver() {
+      this.dmxReceiverVisible = !this.dmxReceiverVisible;
+      // Just toggle visibility, don't affect the connection
+      localStorage.setItem('dmxReceiverVisible', this.dmxReceiverVisible);
+      EventBus.emit('toggle_dmx_receiver', this.dmxReceiverVisible);
+    },
+    /**
      * Keydown event handler
      *
      * @public
@@ -350,6 +411,12 @@ export default {
           this.playPauseShow();
           break;
         default: break;
+      }
+      
+      // Alt+D to toggle DMX Receiver
+      if (e.altKey && e.key === 'd') {
+        this.toggleDmxReceiver();
+        e.preventDefault();
       }
     },
     /**
@@ -407,7 +474,8 @@ export default {
 .header_menu,
 .bpm_container,
 .tap_container,
-.state_container {
+.state_container,
+.dmx_receiver_container {
   height: 100%;
   padding: 0 16px;
   border-left: 1px solid var(--primary-dark);
@@ -417,10 +485,14 @@ export default {
   min-width: 100px;
   max-width: 100px;
 }
-.tap_container:active, .state_container:active{
+.tap_container:active, 
+.state_container:active,
+.dmx_receiver_container:active {
   background: var(--secondary-dark) !important;
 }
-.tap_container:hover, .state_container:hover {
+.tap_container:hover, 
+.state_container:hover,
+.dmx_receiver_container:hover {
   background: var(--secondary-darker);
   cursor: pointer;
 }
@@ -479,5 +551,34 @@ export default {
     background: var(--accent-sea-green);
     border: 2px solid transparent;
   }
+}
+
+.dmx_receiver_container {
+  position: relative;
+}
+
+.dmx_receiver_container.active {
+  background-color: var(--primary-lighter-alt);
+}
+
+.dmx_receiver_container.connected {
+  border-left: 3px solid var(--accent-green);
+}
+
+.dmx_receiver_container.connected h3,
+.dmx_receiver_container.connected .dmx_receiver_icon {
+  color: var(--accent-green);
+}
+
+.dmx_receiver_icon {
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--secondary-light);
+}
+
+.dmx_receiver_container.connected .dmx_receiver_icon {
+  color: var(--accent-green);
 }
 </style>

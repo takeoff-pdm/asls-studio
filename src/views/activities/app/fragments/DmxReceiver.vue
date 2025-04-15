@@ -60,14 +60,22 @@
           <span class="stat-value">{{ activeChannels }}</span>
         </div>
       </div>
-      <div class="channels-preview">
-        <div 
-          v-for="(value, index) in channelValues" 
-          :key="index" 
-          class="channel-meter"
-          :style="{ height: `${(value / 255) * 100}%`, backgroundColor: getChannelColor(value) }"
-          :title="`Channel ${index + 1}: ${value}`"
-        ></div>
+      <div class="channels-container">
+        <div class="channel-markers">
+          <div class="channel-marker" v-for="n in 13" :key="n">{{(n-1)*50 + 1}}</div>
+        </div>
+        <div class="channels-preview">
+          <div 
+            v-for="(value, index) in channelValues" 
+            :key="index" 
+            class="channel-meter"
+            :class="{ 'active': value > 50 }"
+            :style="{ height: `${(value / 255) * 100}%`, backgroundColor: getChannelColor(value) }"
+            :title="`Channel ${index + 1}: ${value}`"
+          >
+            <span v-if="value > 50" class="channel-number">{{ index + 1 }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -75,6 +83,7 @@
 
 <script>
 import DMXReceiver from '@/plugins/dmx-receiver';
+import EventBus from '@/plugins/eventbus';
 
 export default {
   name: 'DmxReceiver',
@@ -91,7 +100,7 @@ export default {
       packetsReceived: 0,
       lastUpdateTime: 'N/A',
       activeChannels: 0,
-      channelValues: Array(16).fill(0) // Store first 16 channel values for preview
+      channelValues: Array(512).fill(0) // Store all 512 channel values for preview
     };
   },
   
@@ -139,7 +148,7 @@ export default {
         this.packetsReceived = 0;
         this.lastUpdateTime = 'N/A';
         this.activeChannels = 0;
-        this.channelValues = Array(16).fill(0);
+        this.channelValues = Array(512).fill(0);
         
         // If receiver exists but the URL has changed, recreate it
         if (this.receiver && this.receiver.url !== this.websocketUrl) {
@@ -154,10 +163,12 @@ export default {
           this.receiver.on('connected', () => {
             this.isConnected = true;
             this.reconnecting = false;
+            EventBus.emit('dmx_connection_state_changed', true);
           });
           
           this.receiver.on('disconnected', () => {
             this.isConnected = false;
+            EventBus.emit('dmx_connection_state_changed', false);
           });
           
           this.receiver.on('error', (error) => {
@@ -175,6 +186,7 @@ export default {
           });
           
           this.receiver.on('dmxData', (data) => {
+            // Always update the universe data, even if panel is hidden
             this.updateStats(data);
           });
         } else {
@@ -201,6 +213,9 @@ export default {
         
         // Ensure isConnected is set to false
         this.isConnected = false;
+        
+        // Update toolbar button state
+        EventBus.emit('dmx_connection_state_changed', false);
       }
     },
     
@@ -223,25 +238,61 @@ export default {
       // Calculate active channels (with values > 0)
       this.activeChannels = Array.from(data).filter(val => val > 0).length;
       
-      // Store first 16 channels for preview
-      this.channelValues = Array.from(data.slice(0, 16));
+      // Store all 512 channels for preview
+      this.channelValues = Array.from(data.slice(0, 512));
     },
     
     getChannelColor(value) {
-      // Generate colors based on intensity
+      // Generate colors based on intensity using app's accent colors
       const intensity = Math.min(1, value / 255);
-      if (intensity < 0.3) {
-        return `rgb(${intensity * 255 * 3}, 0, 0)`;
-      } else if (intensity < 0.6) {
-        return `rgb(${intensity * 255 * 1.5}, ${intensity * 255 * 1.5}, 0)`;
+      
+      if (intensity === 0) {
+        return 'transparent';
+      } else if (intensity < 0.25) {
+        return `var(--accent-red)`;
+      } else if (intensity < 0.5) {
+        return `var(--accent-orange)`;
+      } else if (intensity < 0.75) {
+        return `var(--accent-gold)`;
       } else {
-        return `rgb(0, ${intensity * 255}, 0)`;
+        return `var(--accent-green)`;
       }
     }
   },
   
+  watch: {
+    // Watch for changes in connection state to update toolbar
+    isConnected(newValue) {
+      // Emit event to update toolbar button
+      EventBus.emit('dmx_connection_state_changed', newValue);
+    }
+  },
+  
+  mounted() {
+    // Emit initial connection state to toolbar
+    if (this.isConnected) {
+      EventBus.emit('dmx_connection_state_changed', true);
+    }
+  },
+  
+  // Add keep-alive hook
+  activated() {
+    // If connection was active before, make sure UI reflects that
+    if (this.receiver && this.receiver.isConnected()) {
+      this.isConnected = true;
+      // Update toolbar button state
+      EventBus.emit('dmx_connection_state_changed', true);
+    }
+  },
+  
   beforeUnmount() {
-    // Clean up on component destruction
+    // Do NOT clean up on component hiding since we're using v-show
+    // This ensures connections remain active when panel is hidden
+    // this.cleanupReceiver();
+  },
+  
+  beforeDestroy() {
+    // Only clean up when component is fully destroyed (app closing)
     this.cleanupReceiver();
   }
 };
@@ -249,78 +300,103 @@ export default {
 
 <style scoped>
 .dmx-receiver {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 250px;
+  overflow: auto;
   padding: 12px;
-  background-color: #fff;
+  background-color: var(--primary-dark);
+  font-family: Roboto-Regular;
+  color: var(--secondary-lighter);
 }
 
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  padding: 12px;
+  align-items: flex-end;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 200px;
 }
 
 .input-group label {
   margin-bottom: 4px;
   font-size: 12px;
   font-weight: bold;
+  font-family: Roboto-Medium;
+  color: var(--secondary-lighter);
 }
 
 .input-group input,
 .input-group select {
   padding: 6px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--secondary-dark);
   border-radius: 4px;
   font-size: 12px;
+  font-family: Roboto-Regular;
+  background-color: var(--primary-light);
+  color: var(--secondary-lighter);
+  height: 28px;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+  border-color: var(--accent-blue);
 }
 
 .connect-btn {
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
-  background-color: #2196F3;
+  background-color: var(--accent-blue);
   color: white;
   cursor: pointer;
-  align-self: flex-end;
-  margin-top: 18px;
   font-size: 12px;
+  font-family: Roboto-Regular;
+  text-transform: uppercase;
+  height: 28px;
+  min-width: 120px;
+  margin-bottom: 0;
 }
 
 .connect-btn:hover {
-  background-color: #1976D2;
+  background-color: var(--accent-light-blue);
 }
 
 .connect-btn.connected {
-  background-color: #F44336;
+  background-color: var(--accent-red);
 }
 
 .connect-btn.connected:hover {
-  background-color: #D32F2F;
+  background-color: var(--accent-maroon);
 }
 
 .error-message {
-  color: #F44336;
+  color: var(--accent-red);
   font-size: 12px;
-  margin-bottom: 8px;
+  margin: 0 12px 8px 12px;
+  font-family: Roboto-Medium;
 }
 
 .dmx-stats {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #eee;
+  display: flex;
+  padding: 4px 12px 12px 12px;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .stats-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
 .stat-item {
@@ -332,43 +408,124 @@ export default {
 
 .stat-label {
   font-weight: bold;
+  font-family: Roboto-Bold;
+  color: var(--secondary-light-alt);
 }
 
 .stat-value {
-  font-family: monospace;
+  font-family: Roboto-Regular;
+  color: var(--secondary-lighter);
 }
 
 .stat-value.connected {
-  color: #4CAF50;
+  color: var(--accent-green);
   font-weight: bold;
 }
 
 .stat-value.disconnected {
-  color: #9E9E9E;
+  color: var(--secondary-light);
 }
 
 .stat-value.reconnecting {
-  color: #FF9800;
+  color: var(--accent-gold);
 }
 
 .stat-value.error {
-  color: #F44336;
+  color: var(--accent-red);
 }
+
+.channels-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+
+.channel-markers {
+  display: flex;
+  height: 16px;
+  padding: 0;
+  margin-bottom: 2px;
+  position: relative;
+}
+
+.channel-marker {
+  position: absolute;
+  font-size: 10px;
+  font-family: 'Roboto-Regular', sans-serif;
+  color: var(--secondary-light);
+  transform: translateX(-50%);
+}
+
+.channel-marker:nth-child(1) { left: 0%; }
+.channel-marker:nth-child(2) { left: 8.33%; }
+.channel-marker:nth-child(3) { left: 16.66%; }
+.channel-marker:nth-child(4) { left: 25%; }
+.channel-marker:nth-child(5) { left: 33.33%; }
+.channel-marker:nth-child(6) { left: 41.66%; }
+.channel-marker:nth-child(7) { left: 50%; }
+.channel-marker:nth-child(8) { left: 58.33%; }
+.channel-marker:nth-child(9) { left: 66.66%; }
+.channel-marker:nth-child(10) { left: 75%; }
+.channel-marker:nth-child(11) { left: 83.33%; }
+.channel-marker:nth-child(12) { left: 91.66%; }
+.channel-marker:nth-child(13) { left: 100%; transform: translateX(-100%); }
 
 .channels-preview {
   display: flex;
   height: 60px;
-  background-color: #f5f5f5;
+  background-color: var(--primary-lighter);
   border-radius: 4px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--secondary-darker);
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--secondary-dark) var(--primary-dark);
+}
+
+.channels-preview::-webkit-scrollbar {
+  height: 8px;
+}
+
+.channels-preview::-webkit-scrollbar-track {
+  background: var(--primary-dark);
+  border-radius: 0 0 4px 4px;
+}
+
+.channels-preview::-webkit-scrollbar-thumb {
+  background-color: var(--secondary-dark);
+  border-radius: 4px;
 }
 
 .channel-meter {
-  flex: 1;
+  min-width: 8px;
+  width: 8px;
+  flex: 0 0 auto;
   margin: 0 1px;
-  background-color: #ccc;
+  background-color: var(--primary-dark-alt);
   position: relative;
   bottom: 0;
   transition: height 0.1s ease-out;
+}
+
+.channel-meter.active {
+  min-width: 16px;
+  width: 16px;
+  z-index: 1;
+}
+
+.channel-number {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: center bottom;
+  font-size: 9px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
 }
 </style> 
